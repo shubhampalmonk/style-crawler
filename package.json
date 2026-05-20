@@ -1,0 +1,28 @@
+{
+  "name": "shop-style-crawler",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client"
+  ],
+  "main": "crawler.js",
+  "description": "Playwright style extraction with React preview",
+  "scripts": {
+    "dev:server": "nodemon server/index.js",
+    "dev:client": "npm run dev -w client",
+    "dev": "concurrently -n api,ui -c blue,magenta \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "npm run build -w client",
+    "start": "NODE_ENV=production node server/index.js",
+    "crawl": "node crawler.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "nodemon": "^3.1.0"
+  },
+  "license": "ISC"
+}
