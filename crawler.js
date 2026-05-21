@@ -330,7 +330,7 @@ async function runCrawler(shopUrl, opts = {}) {
   const withLogs = payload => ({ ...payload, logs: [...logs] });
 
   const browser = await chromium.launch({
-    headless: false,
+    headless: true,
     args: ["--disable-blink-features=AutomationControlled"],
   });
 
