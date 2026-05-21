@@ -36,7 +36,7 @@ app.post("/api/crawl", async (req, res) => {
   }
 });
 
-const dist = path.join(__dirname, "../client/dist");
+const dist = path.join(__dirname, "../../frontend/dist");
 const serveClient =
   !apiOnly && isProd && fs.existsSync(path.join(dist, "index.html"));
 if (serveClient) {

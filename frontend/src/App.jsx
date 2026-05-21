@@ -10,7 +10,7 @@ const PLACEHOLDER_RE = /your[_-]?lightsail|YOUR_LIGHTSAIL|REPLACE/i;
 function getApiConfigError(base) {
   if (!base) return null;
   if (PLACEHOLDER_RE.test(base)) {
-    return "Set client/.env.local to your Lightsail Public IPv4, then restart: npm run dev:client";
+    return "Set frontend/.env.local to your Lightsail Public IPv4, then restart: npm run dev:client";
   }
   try {
     const host = new URL(base).hostname;
@@ -18,7 +18,7 @@ function getApiConfigError(base) {
       return `Invalid API host "${host}". Use full Public IPv4 from Lightsail (four numbers, e.g. 52.14.89.88).`;
     }
   } catch {
-    return "Invalid VITE_API_BASE_URL in client/.env.local";
+    return "Invalid VITE_API_BASE_URL in frontend/.env.local";
   }
   return null;
 }

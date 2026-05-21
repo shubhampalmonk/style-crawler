@@ -4,7 +4,6 @@ FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-COPY client/package.json ./client/
 RUN npm ci --omit=dev
 
 COPY server ./server

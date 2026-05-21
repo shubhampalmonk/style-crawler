@@ -1,5 +1,5 @@
 {
   "watch": ["server", "crawler.js"],
   "ext": "js,json",
-  "ignore": ["client", "node_modules", "*.test.js"]
+  "ignore": ["node_modules", "*.test.js"]
 }
