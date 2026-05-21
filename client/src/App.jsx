@@ -2,6 +2,29 @@ import { useState } from "react";
 
 const defaultUrl = "https://shubhammonktest.myshopify.com";
 
+const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const apiLabel = apiBase || "local (Vite proxy → :3456)";
+
+const PLACEHOLDER_RE = /your[_-]?lightsail|YOUR_LIGHTSAIL|REPLACE/i;
+
+function getApiConfigError(base) {
+  if (!base) return null;
+  if (PLACEHOLDER_RE.test(base)) {
+    return "Set client/.env.local to your Lightsail Public IPv4, then restart: npm run dev:client";
+  }
+  try {
+    const host = new URL(base).hostname;
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+      return `Invalid API host "${host}". Use full Public IPv4 from Lightsail (four numbers, e.g. 52.14.89.88).`;
+    }
+  } catch {
+    return "Invalid VITE_API_BASE_URL in client/.env.local";
+  }
+  return null;
+}
+
+const apiConfigError = getApiConfigError(apiBase);
+
 function textSnapToStyle(s) {
   if (!s) return {};
   return {
@@ -103,13 +126,16 @@ export default function App() {
   async function run() {
     setErr("");
     setData(null);
+    if (apiConfigError) {
+      setErr(apiConfigError);
+      return;
+    }
     if (!url.trim()) {
       setErr("Enter a store URL.");
       return;
     }
     setLoading(true);
     try {
-      const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
       const res = await fetch(`${apiBase}/api/crawl`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -141,6 +167,9 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>PDP copy vs store styles</h1>
+        <p className="api-target">
+          Backend: <code>{apiLabel}</code>
+        </p>
         <p>
           Main block:{" "}
           <code className="inline">
@@ -173,6 +202,9 @@ export default function App() {
             {loading ? "Loading…" : "Load"}
           </button>
         </div>
+        {apiConfigError ? (
+          <p className="status err">{apiConfigError}</p>
+        ) : null}
         {err ? <p className="status err">{err}</p> : null}
         {data && !err && !loading ? (
           <p className="status">

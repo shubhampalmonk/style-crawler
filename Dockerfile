@@ -1,5 +1,5 @@
 # Playwright base image includes Chromium (required for crawler.js)
-FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 WORKDIR /app
 

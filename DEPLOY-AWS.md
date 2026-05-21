@@ -209,9 +209,11 @@ docker run -d ... \
 
 | Problem | Fix |
 |---------|-----|
+| `permission denied` on `docker.sock` | Run `sudo usermod -aG docker $USER`, then **disconnect SSH completely** and reconnect (or run `newgrp docker`). Until then, prefix commands with `sudo` (e.g. `sudo docker build ...`). |
 | `curl` hangs / times out | Firewall rule for **8080** missing on Lightsail networking |
 | Container exits immediately | `docker logs shop-crawler-api` |
 | `Browser closed` / OOM | Use **$10** plan (2 GB), not $5 |
+| Playwright `Executable doesn't exist` / version mismatch | `Dockerfile` base image tag must match `playwright` in `package.json` (e.g. `v1.59.1-jammy`), then rebuild the image on the server |
 | CORS error in browser | Set `CORS_ORIGIN` to your frontend origin |
 | Build slow on server | Normal first time; image is ~1–2 GB |
 
