@@ -1,0 +1,9 @@
+node_modules
+client/node_modules
+client/dist
+client/src
+.git
+.env
+.DS_Store
+*.md
+!DEPLOY-AWS.md

@@ -109,7 +109,8 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/crawl", {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/api/crawl`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

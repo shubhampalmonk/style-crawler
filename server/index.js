@@ -1,14 +1,23 @@
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const { runCrawler } = require("../crawler");
 
 const app = express();
-const PORT = process.env.PORT || 3456;
 const isProd = process.env.NODE_ENV === "production";
+const apiOnly = process.env.API_ONLY === "true" || process.env.API_ONLY === "1";
+const PORT = Number(process.env.PORT) || (isProd ? 8080 : 3456);
 
-app.use(cors());
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map(s => s.trim()).filter(Boolean)
+  : true;
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json({ limit: "2mb" }));
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
 
 app.post("/api/crawl", async (req, res) => {
   const shopUrl = req.body?.shopUrl || req.body?.url;
@@ -27,8 +36,10 @@ app.post("/api/crawl", async (req, res) => {
   }
 });
 
-if (isProd) {
-  const dist = path.join(__dirname, "../client/dist");
+const dist = path.join(__dirname, "../client/dist");
+const serveClient =
+  !apiOnly && isProd && fs.existsSync(path.join(dist, "index.html"));
+if (serveClient) {
   app.use(express.static(dist));
   app.get("*", (req, res) => {
     if (req.path.startsWith("/api")) return res.status(404).json({ error: "Not found" });
@@ -36,10 +47,13 @@ if (isProd) {
   });
 }
 
-app.listen(PORT, () => {
-  if (!isProd) {
-    console.log(`API: http://127.0.0.1:${PORT}/api/crawl`);
+app.listen(PORT, "0.0.0.0", () => {
+  const base = `http://0.0.0.0:${PORT}`;
+  if (serveClient) {
+    console.log(`App: ${base}/`);
   } else {
-    console.log(`App: http://127.0.0.1:${PORT}/`);
+    console.log(`API listening on ${base}`);
+    console.log(`  POST ${base}/api/crawl`);
+    console.log(`  GET  ${base}/health`);
   }
 });
