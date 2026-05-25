@@ -204,7 +204,7 @@ function extractPdpInPage() {
     boxShadow: cMain.boxShadow,
   };
 
-  const titleEl = main.querySelector("h1");
+  const titleEl = main.querySelector("h1, h2, h3, h4, h5, h6");
   const title = titleEl ? textSnap(titleEl) : null;
 
   const priceEl = main.querySelector(
