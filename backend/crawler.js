@@ -360,6 +360,7 @@ async function runCrawler(shopUrl, opts = {}) {
 
     const page = await context.newPage();
     await page.goto(shopUrl, gotoOpts);
+    trace("goto shopUrl", shopUrl);
     // const passwordGate = await unlockStorefrontIfNeeded(
     //   page,
     //   storefrontPassword
@@ -376,7 +377,9 @@ async function runCrawler(shopUrl, opts = {}) {
     //   };
     // }
     const landed = page.url();
+    trace("landed url", landed);
     if (/google\./.test(landed)) {
+      trace("blocked by google redirect", landed);
       return withLogs({
         ok: false,
         error: "Landed on Google — this store’s bot/IP guard blocked automation. If this persists, try a residential network or a non-headless run with a normal Chrome profile.",
@@ -402,12 +405,16 @@ async function runCrawler(shopUrl, opts = {}) {
         0;
       window.scrollTo(0, h);
     });
+    trace("homepage scrolled");
     await sleep(200);
 
     const first = await firstProductOrCollectionInOrder(page);
     let pdpUrl = null;
     let collectionFallbackUrl = null;
     trace("first", first);
+    if (!first) {
+      trace("no product or collection link found on homepage");
+    }
 
     if (first) {
       if (first.kind === "product") {
@@ -418,6 +425,7 @@ async function runCrawler(shopUrl, opts = {}) {
         collectionFallbackUrl = first.href;
         trace("collectionFallbackUrl", collectionFallbackUrl);
         await page.goto(collectionFallbackUrl, gotoOpts);
+        trace("goto collectionFallbackUrl", collectionFallbackUrl);
         await page.evaluate(() => {
           const h =
             document.body?.scrollHeight ||
@@ -432,6 +440,12 @@ async function runCrawler(shopUrl, opts = {}) {
     }
 
     if (!pdpUrl) {
+      trace(
+        "no pdpUrl",
+        collectionFallbackUrl
+          ? "collection page had no product link"
+          : "homepage had no product or collection link"
+      );
       return withLogs({
         ok: true,
         shopUrl: shopUrl,
@@ -445,8 +459,20 @@ async function runCrawler(shopUrl, opts = {}) {
       });
     }
     await page.goto(pdpUrl, gotoOpts);
+    trace("goto pdpUrl", pdpUrl);
     const raw = await extractPdpPage(page);
+    trace(
+      "extractPdpPage mainBlock",
+      raw && raw.mainBlock ? "found" : "missing"
+    );
+    trace("pdp extraction details", {
+      form: raw.form?.found ? "found" : "missing",
+      title: raw.title ? raw.title.text : "missing",
+      price: raw.price ? raw.price.text : "missing",
+      atc: raw.atc ? raw.atc.text : "missing",
+    });
     if (!raw.mainBlock) {
+      trace("missing main PDP block after extractPdpPage");
       return withLogs({
         ok: true,
         shopUrl: shopUrl,
