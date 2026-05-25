@@ -426,6 +426,12 @@ async function runCrawler(shopUrl, opts = {}) {
         trace("collectionFallbackUrl", collectionFallbackUrl);
         await page.goto(collectionFallbackUrl, gotoOpts);
         trace("goto collectionFallbackUrl", collectionFallbackUrl);
+        try {
+          await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 3000 });
+          trace("pdp selector appeared on collection page");
+        } catch (e) {
+          trace("pdp selector not found on collection page (continuing)");
+        }
         await page.evaluate(() => {
           const h =
             document.body?.scrollHeight ||
@@ -460,6 +466,12 @@ async function runCrawler(shopUrl, opts = {}) {
     }
     await page.goto(pdpUrl, gotoOpts);
     trace("goto pdpUrl", pdpUrl);
+    try {
+      await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 3000 });
+      trace("pdp selector appeared on product page");
+    } catch (e) {
+      trace("pdp selector not found on product page (will still attempt extraction)");
+    }
     const raw = await extractPdpPage(page);
     trace(
       "extractPdpPage mainBlock",
