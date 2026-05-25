@@ -151,9 +151,9 @@ function extractPdpInPage() {
     ];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
-      if (el) return el;
+      if (el) return { el, matchedSelector: sel };
     }
-    return null;
+    return { el: null, matchedSelector: null };
   }
 
   function atcSnap(el) {
@@ -184,10 +184,11 @@ function extractPdpInPage() {
     };
   }
 
-  const main = getMainPdpBlock();
+  const { el: main, matchedSelector } = getMainPdpBlock();
   if (!main) {
     return {
       mainBlock: null,
+      matchedSelector: null,
       form: null,
       productArea: null,
       price: null,
@@ -227,6 +228,7 @@ function extractPdpInPage() {
 
   return {
     mainBlock: true,
+    matchedSelector,
     form: form
       ? { action: form.action, found: true }
       : { found: false, action: null },
@@ -367,9 +369,24 @@ async function runCrawler(shopUrl, opts = {}) {
     });
     await attachCrawlerEvasion(context);
 
+    // Block images, fonts, and media — not needed for style extraction; saves ~60% memory per page.
+    await context.route(
+      /\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot|otf|mp4|mp3|avi|mov|wmv)(\?.*)?$/i,
+      route => route.abort()
+    );
+
+    const memMB = () => Math.round(process.memoryUsage().rss / 1024 / 1024) + "MB";
+    const checkBotPage = (title, snippet) => {
+      if (/just a moment|checking your browser|enable javascript|ddos-guard|cloudflare ray/i.test(title + " " + snippet)) {
+        return `bot-protection challenge detected (title: "${title}")`;
+      }
+      return null;
+    };
+
     const page = await context.newPage();
-    await page.goto(shopUrl, gotoOpts);
-    trace("goto shopUrl", shopUrl);
+    trace("mem before homepage:", memMB());
+    const homeResp = await page.goto(shopUrl, gotoOpts);
+    trace("goto shopUrl", shopUrl, "| status:", homeResp?.status() ?? "none");
     // const passwordGate = await unlockStorefrontIfNeeded(
     //   page,
     //   storefrontPassword
@@ -386,7 +403,10 @@ async function runCrawler(shopUrl, opts = {}) {
     //   };
     // }
     const landed = page.url();
-    trace("landed url", landed);
+    const homeTitle = await page.title().catch(() => "");
+    trace("landed url", landed, "| title:", homeTitle);
+    const homeBotWarn = checkBotPage(homeTitle, "");
+    if (homeBotWarn) trace("WARN homepage:", homeBotWarn);
     if (/google\./.test(landed)) {
       trace("blocked by google redirect", landed);
       return withLogs({
@@ -433,13 +453,23 @@ async function runCrawler(shopUrl, opts = {}) {
         trace("collection", first);
         collectionFallbackUrl = first.href;
         trace("collectionFallbackUrl", collectionFallbackUrl);
-        await page.goto(collectionFallbackUrl, gotoOpts);
-        trace("goto collectionFallbackUrl", collectionFallbackUrl);
+        const collResp = await page.goto(collectionFallbackUrl, gotoOpts);
+        trace("goto collectionFallbackUrl", collectionFallbackUrl, "| status:", collResp?.status() ?? "none");
         try {
           await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 8000 });
-          trace("pdp selector appeared on collection page");
+          const collTitle = await page.title().catch(() => "");
+          trace("pdp selector appeared on collection page | title:", collTitle);
+          const collBotWarn = checkBotPage(collTitle, "");
+          if (collBotWarn) trace("WARN collection page:", collBotWarn);
         } catch (e) {
-          trace("pdp selector not found on collection page (continuing)");
+          const [collTitle, collSnippet] = await Promise.all([
+            page.title().catch(() => "(error)"),
+            page.evaluate(() => (document.body?.innerText || "").trim().slice(0, 300)).catch(() => "(error)"),
+          ]);
+          trace("pdp selector not found on collection page | title:", collTitle);
+          trace("collection page body snippet:", collSnippet);
+          const collBotWarn = checkBotPage(collTitle, collSnippet);
+          if (collBotWarn) trace("WARN collection page:", collBotWarn);
         }
         await page.evaluate(() => {
           const h =
@@ -473,24 +503,38 @@ async function runCrawler(shopUrl, opts = {}) {
           : "No product or /collections/ link on the first page.",
       });
     }
-    await page.goto(pdpUrl, gotoOpts);
-    trace("goto pdpUrl", pdpUrl);
+    trace("mem before pdp:", memMB());
+    const pdpResp = await page.goto(pdpUrl, gotoOpts);
+    const pdpFinalUrl = page.url();
+    trace("goto pdpUrl", pdpUrl, "| status:", pdpResp?.status() ?? "none", "| final url:", pdpFinalUrl);
     try {
       await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 8000 });
-      trace("pdp selector appeared on product page");
+      const pdpTitle = await page.title().catch(() => "");
+      trace("pdp selector appeared on product page | title:", pdpTitle);
+      const pdpBotWarn = checkBotPage(pdpTitle, "");
+      if (pdpBotWarn) trace("WARN pdp page:", pdpBotWarn);
     } catch (e) {
-      trace("pdp selector not found on product page (will still attempt extraction)");
+      const [pdpTitle, bodySnippet, sectionIds] = await Promise.all([
+        page.title().catch(() => "(error)"),
+        page.evaluate(() => (document.body?.innerText || "").trim().slice(0, 300)).catch(() => "(error)"),
+        page.evaluate(() => Array.from(document.querySelectorAll('[id^="shopify-section"]')).map(el => el.id)).catch(() => []),
+      ]);
+      trace("pdp selector not found on product page | title:", pdpTitle);
+      trace("pdp body snippet:", bodySnippet);
+      trace("shopify-section IDs in DOM:", sectionIds.length ? sectionIds : "none");
+      trace("has <main>:", await page.evaluate(() => !!document.querySelector("main")).catch(() => false));
+      const pdpBotWarn = checkBotPage(pdpTitle, bodySnippet);
+      if (pdpBotWarn) trace("WARN pdp page:", pdpBotWarn);
     }
     let raw = await extractPdpPage(page);
     if (!raw.mainBlock) {
-      // On low-RAM servers JS can take longer; wait and retry once
-      trace("mainBlock missing on first extraction, waiting 3s before retry");
+      trace("mainBlock missing on first extraction, waiting 3s before retry | mem:", memMB());
       await sleep(3000);
       raw = await extractPdpPage(page);
     }
     trace(
       "extractPdpPage mainBlock",
-      raw && raw.mainBlock ? "found" : "missing"
+      raw && raw.mainBlock ? `found (matched: ${raw.matchedSelector})` : "missing"
     );
     trace("pdp extraction details", {
       form: raw.form?.found ? "found" : "missing",
@@ -499,11 +543,15 @@ async function runCrawler(shopUrl, opts = {}) {
       atc: raw.atc ? raw.atc.text : "missing",
     });
     if (!raw.mainBlock) {
-      trace("missing main PDP block after extractPdpPage");
+      const finalSectionIds = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[id^="shopify-section"]')).map(el => el.id)
+      ).catch(() => []);
+      trace("missing main PDP block after retry | shopify-section IDs:", finalSectionIds.length ? finalSectionIds : "none");
+      trace("missing main PDP block after retry | mem:", memMB());
       return withLogs({
         ok: true,
         shopUrl: shopUrl,
-        pdpUrl: page.url(),
+        pdpUrl: pdpFinalUrl,
         pdp: null,
         atc: null,
         note: "No [id^=shopify-section][id*=main] found.",
