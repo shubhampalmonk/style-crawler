@@ -540,10 +540,30 @@ async function runCrawler(shopUrl, opts = {}) {
         pdpFinalUrl = page.url();
         trace("myshopify fallback | status:", pdpResp?.status() ?? "none", "| final url:", pdpFinalUrl);
         if (await isBotChallenge(pdpResp, pdpFinalUrl)) {
-          trace("myshopify fallback also blocked — store may require residential IP");
+          trace("myshopify fallback also blocked (myshopify.com redirects to custom domain) — store requires residential IP");
+          return withLogs({
+            ok: false,
+            error: "Cloudflare is blocking product page access from this server IP. The store's myshopify.com domain also redirects to the Cloudflare-protected custom domain. A residential IP or proxy is required.",
+            botProtected: true,
+            shopUrl,
+            pdpUrl: pdpFinalUrl,
+            pdp: null,
+            atc: null,
+            ...(collectionFallbackUrl ? { collectionFallbackUrl } : {}),
+          });
         }
       } else {
-        trace("no myshopify.com fallback available (shopUrl was already a custom domain)");
+        trace("no myshopify.com fallback available — returning bot-protection error");
+        return withLogs({
+          ok: false,
+          error: "Cloudflare is blocking product page access from this server IP. A residential IP or proxy is required.",
+          botProtected: true,
+          shopUrl,
+          pdpUrl: pdpFinalUrl,
+          pdp: null,
+          atc: null,
+          ...(collectionFallbackUrl ? { collectionFallbackUrl } : {}),
+        });
       }
     }
 
