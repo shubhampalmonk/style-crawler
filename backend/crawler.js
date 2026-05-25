@@ -143,13 +143,17 @@ function extractPdpInPage() {
   }
 
   function getMainPdpBlock() {
-    const main = document.querySelector(
-      '[id^="shopify-section"][id*="main"]'
-    );
-    if (main) return main;
-    return document.querySelector(
-      '[id^="shopify-section"][id*="product"]'
-    );
+    const selectors = [
+      '[id^="shopify-section"][id*="main"]',
+      '[id^="shopify-section"][id*="product"]',
+      '[id^="shopify-section"][id*="template"]',
+      "main",
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
   }
 
   function atcSnap(el) {
@@ -347,7 +351,12 @@ async function runCrawler(shopUrl, opts = {}) {
 
   const browser = await chromium.launch({
     headless: true,
-    args: ["--disable-blink-features=AutomationControlled"],
+    args: [
+      "--disable-blink-features=AutomationControlled",
+      "--disable-dev-shm-usage",   // prevents Chromium crashes on low-RAM servers where /dev/shm is tiny
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+    ],
   });
 
   try {
@@ -427,7 +436,7 @@ async function runCrawler(shopUrl, opts = {}) {
         await page.goto(collectionFallbackUrl, gotoOpts);
         trace("goto collectionFallbackUrl", collectionFallbackUrl);
         try {
-          await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 3000 });
+          await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 8000 });
           trace("pdp selector appeared on collection page");
         } catch (e) {
           trace("pdp selector not found on collection page (continuing)");
@@ -467,12 +476,18 @@ async function runCrawler(shopUrl, opts = {}) {
     await page.goto(pdpUrl, gotoOpts);
     trace("goto pdpUrl", pdpUrl);
     try {
-      await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 3000 });
+      await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 8000 });
       trace("pdp selector appeared on product page");
     } catch (e) {
       trace("pdp selector not found on product page (will still attempt extraction)");
     }
-    const raw = await extractPdpPage(page);
+    let raw = await extractPdpPage(page);
+    if (!raw.mainBlock) {
+      // On low-RAM servers JS can take longer; wait and retry once
+      trace("mainBlock missing on first extraction, waiting 3s before retry");
+      await sleep(3000);
+      raw = await extractPdpPage(page);
+    }
     trace(
       "extractPdpPage mainBlock",
       raw && raw.mainBlock ? "found" : "missing"
