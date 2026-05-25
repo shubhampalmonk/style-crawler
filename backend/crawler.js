@@ -503,16 +503,54 @@ async function runCrawler(shopUrl, opts = {}) {
           : "No product or /collections/ link on the first page.",
       });
     }
+    const isBotChallenge = async (resp, currentUrl) => {
+      if (resp?.status() === 403) return true;
+      if (/[?&]__cf_chl/.test(currentUrl)) return true;
+      const t = await page.title().catch(() => "");
+      return /just a moment|checking your browser|ddos-guard/i.test(t);
+    };
+
+    // If the original shopUrl was myshopify.com but the product ended up on a custom domain,
+    // build a fallback URL on myshopify.com — Shopify's own domain bypasses Cloudflare.
+    const myshopifyFallback = (targetUrl) => {
+      try {
+        const shopHost = new URL(shopUrl).hostname;
+        if (!shopHost.endsWith(".myshopify.com")) return null;
+        const targetPath = new URL(targetUrl).pathname;
+        const fallback = `https://${shopHost}${targetPath}`;
+        if (fallback === targetUrl) return null;
+        return fallback;
+      } catch (e) {
+        return null;
+      }
+    };
+
     trace("mem before pdp:", memMB());
-    const pdpResp = await page.goto(pdpUrl, gotoOpts);
-    const pdpFinalUrl = page.url();
+    let pdpResp = await page.goto(pdpUrl, gotoOpts);
+    let pdpFinalUrl = page.url();
     trace("goto pdpUrl", pdpUrl, "| status:", pdpResp?.status() ?? "none", "| final url:", pdpFinalUrl);
+
+    if (await isBotChallenge(pdpResp, pdpFinalUrl)) {
+      const pdpTitle = await page.title().catch(() => "");
+      trace("WARN pdp page: bot-protection challenge detected (title:", pdpTitle + ")");
+      const fallback = myshopifyFallback(pdpUrl);
+      if (fallback) {
+        trace("retrying on myshopify.com domain:", fallback);
+        pdpResp = await page.goto(fallback, gotoOpts);
+        pdpFinalUrl = page.url();
+        trace("myshopify fallback | status:", pdpResp?.status() ?? "none", "| final url:", pdpFinalUrl);
+        if (await isBotChallenge(pdpResp, pdpFinalUrl)) {
+          trace("myshopify fallback also blocked — store may require residential IP");
+        }
+      } else {
+        trace("no myshopify.com fallback available (shopUrl was already a custom domain)");
+      }
+    }
+
     try {
       await page.waitForSelector('[id^="shopify-section"], form[action*="/cart/add"], main, [data-product-id]', { timeout: 8000 });
       const pdpTitle = await page.title().catch(() => "");
       trace("pdp selector appeared on product page | title:", pdpTitle);
-      const pdpBotWarn = checkBotPage(pdpTitle, "");
-      if (pdpBotWarn) trace("WARN pdp page:", pdpBotWarn);
     } catch (e) {
       const [pdpTitle, bodySnippet, sectionIds] = await Promise.all([
         page.title().catch(() => "(error)"),
@@ -523,8 +561,6 @@ async function runCrawler(shopUrl, opts = {}) {
       trace("pdp body snippet:", bodySnippet);
       trace("shopify-section IDs in DOM:", sectionIds.length ? sectionIds : "none");
       trace("has <main>:", await page.evaluate(() => !!document.querySelector("main")).catch(() => false));
-      const pdpBotWarn = checkBotPage(pdpTitle, bodySnippet);
-      if (pdpBotWarn) trace("WARN pdp page:", pdpBotWarn);
     }
     let raw = await extractPdpPage(page);
     if (!raw.mainBlock) {
