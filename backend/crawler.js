@@ -312,7 +312,23 @@ async function unlockStorefrontIfNeeded(page, storefrontPassword) {
   return { required: true, unlocked: true, url, afterUrl };
 }
 
+function normalizeShopUrl(shopUrl) {
+  if (!shopUrl || !String(shopUrl).trim()) {
+    throw new Error("Missing shopUrl");
+  }
+  let candidate = String(shopUrl).trim();
+  if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+  const url = new URL(candidate);
+  if (!url.hostname) {
+    throw new Error(`Invalid shopUrl: ${shopUrl}`);
+  }
+  return url.toString();
+}
+
 async function runCrawler(shopUrl, opts = {}) {
+  shopUrl = normalizeShopUrl(shopUrl);
   const storefrontPassword =
     opts.storefrontPassword ||
     process.env.SHOP_STOREFRONT_PASSWORD ||
