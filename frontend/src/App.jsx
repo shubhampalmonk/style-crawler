@@ -2,12 +2,13 @@ import { useState } from "react";
 
 const defaultUrl = "https://shubhammonktest.myshopify.com";
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const apiBase = (import.meta.env.VITE_LOCAL_BASE_URL ?? "").replace(/\/$/, "");
 const apiLabel = apiBase || "local (Vite proxy → :3456)";
 
 const PLACEHOLDER_RE = /your[_-]?lightsail|YOUR_LIGHTSAIL|REPLACE/i;
 
 function getApiConfigError(base) {
+  return null;
   if (!base) return null;
   if (PLACEHOLDER_RE.test(base)) {
     return "Set frontend/.env.local to your Lightsail Public IPv4, then restart: npm run dev:client";
