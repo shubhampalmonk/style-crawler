@@ -8,6 +8,7 @@ RUN npm ci --omit=dev
 
 COPY server ./server
 COPY crawler.js ./
+COPY lib ./lib
 
 ENV NODE_ENV=production
 ENV API_ONLY=true
