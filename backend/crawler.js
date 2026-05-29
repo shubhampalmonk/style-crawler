@@ -1,8 +1,8 @@
 const { GOTO_OPTS, PDP_SELECTOR } = require("./lib/constants");
 const {
-  sleep, normalizeShopUrl, createLogger, isBotChallenge, myshopifyFallback,
+  normalizeShopUrl, createLogger, isBotChallenge, myshopifyFallback,
 } = require("./lib/utils");
-const { createBrowser, createContext } = require("./lib/browser");
+const { createContext } = require("./lib/browser");
 const { scrollToBottom, getMidCollectionUrl, getMidProductUrl } = require("./lib/navigation");
 const { extractPdpPage } = require("./lib/extraction");
 
@@ -37,7 +37,7 @@ async function navigateToPdp(page, pdpUrl, shopUrl, trace) {
 // Waits for the Shopify section / cart form to appear after navigation.
 async function waitForPdpContent(page, trace) {
   try {
-    await page.waitForSelector(PDP_SELECTOR, { timeout: 8000 });
+    await page.waitForSelector(PDP_SELECTOR, { timeout: 4000 });
   } catch {
     trace("pdp selector not found | title:", await page.title().catch(() => "(error)"));
   }
@@ -60,10 +60,9 @@ async function runCrawler(shopUrl, opts = {}) {
   shopUrl = normalizeShopUrl(shopUrl);
 
   const { trace, withLogs } = createLogger();
-  const browser = await createBrowser();
+  const context = await createContext();
 
   async function crawl() {
-    const context = await createContext(browser);
     const page = await context.newPage();
 
     // 1. Load home page
@@ -127,8 +126,11 @@ async function runCrawler(shopUrl, opts = {}) {
     // 4. Extract styles — retry once if the main block hasn't rendered yet
     let raw = await extractPdpPage(page);
     if (!raw.mainBlock) {
-      // Some themes hydrate content after the initial paint; give them 3s
-      await sleep(3000);
+      // Poll for up to 2s rather than sleeping a fixed 3s
+      await page.waitForFunction(
+        () => !!document.querySelector('[id^="shopify-section"][id*="main"], [id^="shopify-section"][id*="product"], [id^="shopify-section"][id*="template"], main'),
+        { timeout: 2000, polling: 100 }
+      ).catch(() => {});
       raw = await extractPdpPage(page);
     }
 
@@ -163,7 +165,7 @@ async function runCrawler(shopUrl, opts = {}) {
   try {
     return await Promise.race([crawl(), timeoutPromise]);
   } finally {
-    await browser.close().catch(() => {});
+    await context.close().catch(() => {});
   }
 }
 

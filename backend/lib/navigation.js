@@ -5,7 +5,7 @@ async function scrollToBottom(page) {
   await page.evaluate(() => {
     window.scrollTo(0, document.body?.scrollHeight || document.documentElement?.scrollHeight || 0);
   });
-  await sleep(200);
+  await sleep(50);
 }
 
 // Returns the middle /collections/ href on the current page, or null.
