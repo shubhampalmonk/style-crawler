@@ -1,4 +1,4 @@
-const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 90_000 };
+const GOTO_OPTS = { waitUntil: "domcontentloaded", timeout: 20_000 };
 
 const BROWSER_ARGS = [
   "--disable-blink-features=AutomationControlled",

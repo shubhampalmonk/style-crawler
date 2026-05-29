@@ -2,7 +2,7 @@ import { useState } from "react";
 
 const defaultUrl = "https://shubhammonktest.myshopify.com";
 
-const apiBase = (import.meta.env.VITE_API_LOCAL_URL ?? "").replace(/\/$/, "");
+const apiBase = (import.meta.env.VITE_LOCAL_BASE_URL ?? "").replace(/\/$/, "");
 const apiLabel = apiBase || "local (Vite proxy → :3456)";
 
 const PLACEHOLDER_RE = /your[_-]?lightsail|YOUR_LIGHTSAIL|REPLACE/i;

@@ -54,13 +54,15 @@ async function waitForPdpContent(page, trace) {
  * Flow: home → mid collection → mid product → extract styles.
  * Falls back to mid product on home directly if no collection link is found.
  */
+const TOTAL_CRAWL_TIMEOUT_MS = 40_000;
+
 async function runCrawler(shopUrl, opts = {}) {
   shopUrl = normalizeShopUrl(shopUrl);
 
   const { trace, withLogs } = createLogger();
   const browser = await createBrowser();
 
-  try {
+  async function crawl() {
     const context = await createContext(browser);
     const page = await context.newPage();
 
@@ -149,8 +151,19 @@ async function runCrawler(shopUrl, opts = {}) {
       atc: raw.atc ? { atcStyles: { ...raw.atc } } : { atcStyles: null },
       ...(collectionFallbackUrl ? { collectionFallbackUrl } : {}),
     });
+  }
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`Store took too long to respond (${TOTAL_CRAWL_TIMEOUT_MS / 1000}s timeout)`)),
+      TOTAL_CRAWL_TIMEOUT_MS
+    )
+  );
+
+  try {
+    return await Promise.race([crawl(), timeoutPromise]);
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }
 

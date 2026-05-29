@@ -92,8 +92,13 @@ function extractPdpInPage() {
   );
   const form = main.querySelector('form[action*="/cart/add"]');
   let atcEl = form
-    ? form.querySelector("button[type='submit'], input[type='submit']")
-    : null;
+  ? form.querySelector(`
+      button[type='submit'],
+      input[type='submit'],
+      button[id*='submit'],
+      button[class*='submit']
+    `)
+  : null;
   if (!atcEl) atcEl = main.querySelector("button[type='submit']");
 
   return {
